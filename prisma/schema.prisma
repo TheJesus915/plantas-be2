@@ -1,0 +1,361 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+model User {
+  id                String          @id @default(uuid()) @map("user_id")
+  type              Role            @default(general)
+  name              String          @db.VarChar(100)
+  lastname          String          @db.VarChar(100)
+  email             String          @unique @db.VarChar(150)
+  password          String          @db.VarChar(260)
+  token_recovery    String?         @unique
+  token_exp         DateTime?       @db.Timestamp(6)
+  reset_token       String?         @unique
+  reset_token_exp   DateTime?       @db.Timestamp(6)
+  registration_date DateTime        @default(now()) @db.Timestamp(6)
+  status_account    StatusAccount   @default(Pending)
+  areas             Area[]
+  pots              Pot[]
+  profile           UserProfile?
+  user_roles        UserRole[]
+  Notifications     Notification[]
+  WateringGroup     WateringGroup[]
+  LightingGroup     LightingGroup[]
+
+  @@map("users")
+}
+
+model UserProfile {
+  id              String   @id @default(uuid()) @map("id_datos")
+  user_id         String   @unique
+  profile_picture String?
+  birthdate       DateTime @db.Date
+  phone           String   @db.Char(15)
+  country         String   @db.VarChar(100)
+  province        String   @db.VarChar(100)
+  city            String   @db.VarChar(100)
+  user            User     @relation(fields: [user_id], references: [id], onDelete: Cascade)
+
+  @@map("profile_data")
+}
+
+model SystemRole {
+  id                 String             @id @default(uuid()) @map("role_id")
+  name               String             @unique @db.VarChar(100)
+  description        String?
+  is_active          Boolean            @default(true)
+  created_date       DateTime           @default(now()) @db.Timestamp(6)
+  module_permissions ModulePermission[]
+  user_roles         UserRole[]
+
+  @@map("roles")
+}
+
+model UserRole {
+  id      String     @id @default(uuid()) @map("user_role_id")
+  user_id String     @map("user_id")
+  role_id String     @map("role_id")
+  role    SystemRole @relation(fields: [role_id], references: [id], onDelete: Cascade)
+  user    User       @relation(fields: [user_id], references: [id], onDelete: Cascade)
+
+  @@unique([user_id, role_id])
+  @@map("user_roles")
+}
+
+model Module {
+  id           String             @id @default(uuid()) @map("module_id")
+  name         String             @unique @db.VarChar(50)
+  description  String?
+  is_active    Boolean            @default(true)
+  created_date DateTime           @default(now()) @db.Timestamp(6)
+  permissions  ModulePermission[]
+
+  @@map("modules")
+}
+
+model ModulePermission {
+  id         String           @id @default(uuid()) @map("permission_id")
+  role_id    String           @map("role_id")
+  module_id  String           @map("module_id")
+  permission PermissionAction
+  module     Module           @relation(fields: [module_id], references: [id], onDelete: Cascade)
+  role       SystemRole       @relation(fields: [role_id], references: [id], onDelete: Cascade)
+
+  @@unique([role_id, module_id, permission])
+  @@map("module_permissions")
+}
+
+model catalogplant {
+  id              String         @id @default(uuid()) @map("catalog_plant_id")
+  name            String         @unique @db.VarChar(100)
+  description     String?
+  planttype       String         @db.VarChar(50)
+  mintemp         Float?
+  maxtemp         Float?
+  minhum          Float?         @default(0)
+  maxhum          Float?         @default(0)
+  WARNINGS        String?
+  created_at      DateTime       @default(now()) @db.Timestamp(6)
+  taxonomicNodeId String?        @map("taxonomic_node_id")
+  taxonomicNode   TaxonomicNode? @relation(fields: [taxonomicNodeId], references: [id])
+  plantimages     plantimages[]
+  pots            Pot[]
+
+  @@map("catalog_plants")
+}
+
+model MarketplaceCategory {
+  id         String   @id @default(uuid()) @map("category_id")
+  name       String   @db.VarChar(100)
+  image_url  String?  @map("image_url")
+  is_active  Boolean  @default(true)
+  parent_id  String?  @map("parent_id")
+  created_at DateTime @default(now()) @map("created_at") @db.Timestamp(6)
+
+  parent   MarketplaceCategory?  @relation("CategoryHierarchy", fields: [parent_id], references: [id], onDelete: Cascade)
+  children MarketplaceCategory[] @relation("CategoryHierarchy")
+
+  @@map("marketplace_categories")
+}
+
+model plantimages {
+  id         String       @id @default(uuid()) @map("plant_image_id")
+  catalog_id String       @map("catalog_plant_id")
+  image_url  String
+  created_at DateTime     @default(now()) @db.Timestamp(6)
+  catalog    catalogplant @relation(fields: [catalog_id], references: [id], onDelete: Cascade)
+
+  @@map("plant_images")
+}
+
+model Area {
+  user_id     String
+  id          String   @id @default(uuid()) @map("area_id")
+  name        String   @map("name") @db.VarChar(100)
+  description String?  @map("description")
+  image_url   String?  @map("image_url")
+  created_at  DateTime @default(now()) @map("created_at") @db.Timestamp(6)
+  area_type   AreaType @default(INTERIOR) @map("area_type")
+  user        User     @relation(fields: [user_id], references: [id], onDelete: Cascade)
+  pots        Pot[]
+
+  @@map("areas")
+}
+
+model Device {
+  id            String       @id @default(uuid()) @map("device_id")
+  identifier    String       @unique @db.VarChar(100)
+  linking_key   String       @unique @db.VarChar(100)
+  status        DeviceStatus @default(AVAILABLE)
+  registered_at DateTime     @default(now()) @db.Timestamp(6)
+  linked_at     DateTime?    @db.Timestamp(6)
+  light_on      Boolean      @default(false) @map("light_activated")
+  watering_on   Boolean      @default(false) @map("watering_activated")
+  pot           Pot?
+  readings      Readings[]
+
+  @@map("devices")
+}
+
+model Pot {
+  user_id        String
+  id             String          @id @default(uuid()) @map("pot_id")
+  name           String          @map("name") @db.VarChar(100)
+  description    String?         @map("description")
+  image_url      String?         @map("image")
+  created_at     DateTime        @default(now()) @map("created_at") @db.Timestamp(6)
+  area_id        String          @map("area_id")
+  plant_id       String          @map("catalog_plant_id")
+  device_id      String?         @unique @map("device_id")
+  floor          Int             @default(1) @map("floor")
+  area           Area            @relation(fields: [area_id], references: [id], onDelete: Cascade)
+  plant          catalogplant    @relation(fields: [plant_id], references: [id], onDelete: Cascade)
+  device         Device?         @relation(fields: [device_id], references: [id], onDelete: Cascade)
+  user           User            @relation(fields: [user_id], references: [id], onDelete: Cascade)
+  readings       Readings[]
+  wateringGroups WateringGroup[] @relation("PotWateringGroups")
+  lightingGroups LightingGroup[] @relation("PotLightingGroups")
+
+  @@map("pots")
+}
+
+model Readings {
+  id          String   @id @default(uuid()) @map("reading_id")
+  pot_id      String?  @map("pot_id")
+  device_id   String   @map("device_id")
+  temperature Float
+  humidity    Float
+  created_at  DateTime @default(now()) @db.Timestamp(6)
+  pot         Pot?     @relation(fields: [pot_id], references: [id], onDelete: SetNull)
+  device      Device   @relation(fields: [device_id], references: [id], onDelete: Cascade)
+
+  @@map("readings")
+}
+
+model TaxonomicNode {
+  id            String          @id @default(uuid()) @map("taxonomic_node_id")
+  name          String          @db.VarChar(100)
+  rank          TaxonomicRank
+  parentId      String?         @map("parent_id")
+  createdAt     DateTime        @default(now()) @map("created_at") @db.Timestamp(6)
+  catalogPlants catalogplant[]
+  parent        TaxonomicNode?  @relation("TaxonomicHierarchy", fields: [parentId], references: [id], onDelete: Cascade)
+  children      TaxonomicNode[] @relation("TaxonomicHierarchy")
+
+  @@unique([name, rank, parentId])
+  @@map("taxonomic_nodes")
+}
+
+model Notification {
+  id         String   @id @default(uuid()) @map("notification_id")
+  userId     String   @map("user_id")
+  payload    Json
+  created_at DateTime @default(now()) @db.Timestamp(6)
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@map("notifications")
+}
+
+model WateringGroup {
+  id          String             @id @default(uuid()) @map("watering_group_id")
+  user_id     String             @map("user_id")
+  name        String             @db.VarChar(100)
+  description String?
+  image_url   String?
+  pots        Pot[]              @relation("PotWateringGroups")
+  schedules   WateringSchedule[]
+  user        User               @relation(fields: [user_id], references: [id], onDelete: Cascade)
+
+  @@map("watering_groups")
+}
+
+model WateringSchedule {
+  id                String        @id @default(uuid()) @map("watering_schedule_id")
+  watering_group_id String        @map("watering_group_id")
+  name              String        @db.VarChar(100)
+  days              Json          @db.Json
+  start_time        String        @db.VarChar(8)
+  end_time          String        @db.VarChar(8)
+  watering_group    WateringGroup @relation(fields: [watering_group_id], references: [id], onDelete: Cascade)
+
+  @@map("watering_schedules")
+}
+
+model LightingGroup {
+  id          String             @id @default(uuid()) @map("lighting_group_id")
+  user_id     String             @map("user_id")
+  name        String             @db.VarChar(100)
+  description String?
+  image_url   String?
+  pots        Pot[]              @relation("PotLightingGroups")
+  schedules   LightingSchedule[]
+  user        User               @relation(fields: [user_id], references: [id], onDelete: Cascade)
+
+  @@map("lighting_groups")
+}
+
+model LightingSchedule {
+  id                String        @id @default(uuid()) @map("lighting_schedule_id")
+  lighting_group_id String        @map("lighting_group_id")
+  name              String        @db.VarChar(100)
+  days              Json          @db.Json
+  start_time        String        @db.VarChar(8)
+  end_time          String        @db.VarChar(8)
+  light_type        LightType     @default(MEDIUM)
+  light_color       String        @db.VarChar(50)
+  lighting_group    LightingGroup @relation(fields: [lighting_group_id], references: [id], onDelete: Cascade)
+
+  @@map("lighting_schedules")
+}
+
+model FaqNode {
+  id        String      @id @default(uuid()) @map("faq_node_id")
+  parentId  String?     @map("parent_id")
+  type      FaqNodeType @map("type")
+  content   Json        @map("content")
+  createdAt DateTime    @default(now()) @map("created_at") @db.Timestamp(6)
+  parent    FaqNode?    @relation("NodeParent", fields: [parentId], references: [id], onDelete: Cascade)
+  children  FaqNode[]   @relation("NodeParent")
+
+  @@index([parentId])
+  @@map("faq_nodes")
+}
+
+enum FaqNodeType {
+  pregunta
+  respuesta
+
+  @@map("faq_node_types")
+}
+
+enum LightType {
+  LOW
+  MEDIUM
+  HIGH
+
+  @@map("light_types")
+}
+
+enum DeviceStatus {
+  AVAILABLE
+  LINKED
+  DISABLED
+}
+
+enum Role {
+  superadmin
+  admin
+  general
+}
+
+enum StatusAccount {
+  Active
+  Pending
+  Inactive
+}
+
+enum PermissionAction {
+  CREATE
+  READ
+  UPDATE
+  DELETE
+
+  @@map("permission_actions")
+}
+
+enum AreaType {
+  EXTERIOR
+  INTERIOR
+
+  @@map("area_types")
+}
+
+enum TaxonomicRank {
+  DOMAIN
+  KINGDOM
+  SUBKINGDOM
+  DIVISION
+  SUBDIVISION
+  SUPERCLASS
+  CLASS
+  SUBCLASS
+  ORDER
+  SUBORDER
+  FAMILY
+  SUBFAMILY
+  TRIBE
+  SUBTRIBE
+  GENUS
+  SUBGENUS
+  SECTION
+  SPECIES
+
+  @@map("taxonomic_ranks")
+}
